@@ -1,170 +1,117 @@
-
-def skeletonizePart(img):
-    # WhitePixels = np.where(img == 255)
-    # CenterX = floor(sum(WhitePixels[1]) / len(WhitePixels[1]))
-    # CenterY = floor(sum(WhitePixels[0]) / len(WhitePixels[0]))
-
-    # print(img[CenterY, CenterX])
-
-    img[img > 100] = 255
-    img[img <= 100] = 0
-
-    Size = img.shape
-        
-    def check(adjs):
-        # for Index in range(1, len(adjs)):
-        #     if adjs[Index] == adjs[Index - 1] == 255:
-        #         return False
-        # # print("fgv")
-        # return True
-
-        CurrentValue = adjs[-1]
-        Transitions = 0
-        for Index in range(len(adjs)):
-            if adjs[Index] != CurrentValue:
-                Transitions += 1
-                CurrentValue = adjs[Index]
-        if Transitions >= 4:
-            return True
-        else:
-            return False
-
-    Done = False
-    while not Done:
-        Copy = copy.copy(img)
-        Done = True
-
-        for Y, Row in enumerate(img):
-            for X, Pixel in enumerate(Row):
-                if Pixel != 255:
-                    continue
-                # showImageZoomed(Copy, ratio=10, point=(Y, X))
-                if sum(Copy[Y,:]) < 300:
-                    Copy[Y, X] = 255
-                    continue
-                
-                # if sum(Copy[:, X]) < 300:
-                #     Copy[Y, X] = 255
-                #     continue
-
-                OldAdjs = [ getPixel((Y + 1, X - 1), img) , getPixel((Y + 1, X), img) , getPixel((Y + 1, X + 1), img) , getPixel((Y, X + 1), img) , getPixel((Y - 1, X + 1), img) , getPixel((Y - 1, X), img) , getPixel((Y - 1, X - 1), img) , getPixel((Y, X - 1), img) ]
-                Adjs = [ getPixel((Y + 1, X - 1), Copy) , getPixel((Y + 1, X), Copy) , getPixel((Y + 1, X + 1), Copy) , getPixel((Y, X + 1), Copy) , getPixel((Y - 1, X + 1), Copy) , getPixel((Y - 1, X), Copy) , getPixel((Y - 1, X - 1), Copy) , getPixel((Y, X - 1), Copy) ]
-
-                if check(Adjs):
-                    Copy[Y, X] = 255
-                else:
-                    Copy[Y, X] = min(OldAdjs)
-                    Done = False
-                    
-        showImageZoomed(Copy, ratio=10)
-        img = Copy
-    return img
-    
-def skeletonizePartWithAngle(img, angle = 0):
-    img[img > 100] = 255
-    img[img <= 100] = 0
-    h, w = img.shape
-    
-    img, HPadding, WPadding = safetyPadding(img)
-    img = rotateImage(img, angle)
-
-    Copy = np.zeros(img.shape, np.uint8)
-    for Y, Row in enumerate(img):
-        for X, Pixel in enumerate(Row):
-            if Pixel != 255:
-                continue
-            # showImageZoomed(img, ratio=10, point=(Y, X))
-            Count = 1
-            Right = 1
-            Left = 1
-            while Right >= 0 and Left >= 0:
-                Right -= 0 if getPixel((Y, X + Count), img) == 255 else 1
-                Left -= 0 if getPixel((Y, X - Count), img) == 255 else 1
-                Count += 1
-            if abs(Right - Left) <= 1:
-                Copy[Y, X] = 255
-            else:
-                Copy[Y, X] = 0
-                    
-    Copy = rotateImage(Copy, -angle)
-    Copy = Copy[HPadding + 1: HPadding + h + 1, WPadding + 1: WPadding + w + 1]
-    return Copy
-
-def skeletonizePart2(img):
-    
-    img[img > 100] = 255
-    img[img <= 100] = 0
-
-    Copy = np.zeros(img.shape, np.uint8)
-    for Y, Row in enumerate(img):
-        for X, Pixel in enumerate(Row):
-            if Pixel != 255:
-                continue
-            # showImageZoomed(img, ratio=10, point=(Y, X))
-            Count = 1
-            Right = 1
-            Left = 1
-            while Right >= 0 and Left >= 0:
-                Right -= 0 if getPixel((Y, X + Count), img) == 255 else 1
-                Left -= 0 if getPixel((Y, X - Count), img) == 255 else 1
-                Count += 1
-            if abs(Right - Left) <= 1:
-                Copy[Y, X] = 255
-            else:
-                # Copy[Y, X] = 0
-                Count = 1
-                Bottom = 1
-                Top = 1
-                while Bottom >= 0 and Top >= 0:
-                    Bottom -= 0 if getPixel((Y + Count, X), img) == 255 else 1
-                    Top -= 0 if getPixel((Y - Count, X), img) == 255 else 1
-                    Count += 1
-                if abs(Bottom - Top) <= 1:
-                    Copy[Y, X] = 255
-                else:
-                    Copy[Y, X] = 0
-                    
-    return Copy
-                
-
-# Img = loadImage('1.png')
-# showImageZoomed(cv2.add(skeletonizePartWithAngle(Img, 0), skeletonizePartWithAngle(Img, 0)), ratio=10)
-# Parts = seperateToParts(Img)
-# [showImage(Part) for Part in Parts]
-# [skeletonizePart(Part) for Part in Parts]
-
-# Img = loadImage('2.png')
-# Parts = seperateToParts(Img)
-# [showImageZoomed(cv2.add(skeletonizePartWithAngle(Part, 0), skeletonizePartWithAngle(Part, 90)), ratio=10) for Part in Parts]
-
-# Img = loadImage('3.png')
-# Parts = seperateToParts(Img)
-# [showImage(Part) for Part in Parts]
-# [skeletonizePart(Part) for Part in Parts]
-
-
 from thin import *
+from Preprocessing import *
+from FeaturesExtractor import *
+from Utilities import *
+from math import sqrt
+
+def distance(a, b):
+    assert len(a) == len(b) == 2
+    return sqrt(    (a[0] - b[0])**2    +   (a[1] - b[1])**2    )
+
+def getLineSegments(img):
+    # Directions = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
+    # Lines = []
+    # Visited = np.zeros(img.shape)
+    # WhitePixels = np.where(img == 255)
+    # WhitePixels = [(WhitePixels[0][Index], WhitePixels[1][Index]) for Index in range(len(WhitePixels[0]))]
+    # NotVisited = WhitePixels.copy()
+
+    # LinePixels = [NotVisited.pop(0)]
+    # Line = [()]
+    # while len(NotVisited) != 0:
+    #     CurrentP1 = Line[-1]
+    #     Adj = [elementwiseAdding(CurrentP1, Dir) for Dir in Directions if elementwiseAdding(CurrentP1, Dir) in WhitePixels]
+    #     Distances = [distance(CurrentP1, Point) for Point in Adj]
+    #     print(Distances)      
+    #     print(np.where(Distances == min(Distances)))
+    #     exit()
+    zeros = img[img != 255]
+    lines = cv2.HoughLinesP(img, 1, np.pi / 1, 0, minLineLength=3)
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    print(lines)
+    if lines is not None:
+        for index, line in enumerate(lines):
+            # print(line)
+            x1, y1, x2, y2 = line[0]
+            temp = (index + 1) * (1 / lines.shape[0]) * 255
+            cv2.line(img,(x1,y1),(x2,y2),(0,temp,0),1)
+        showImageZoomed(img)
+
+def getLinePixels(line):
+    pass
+
+# img = loadImage('test.png')
+# img = fixSkew(img)
+# img = invertImage(img)
+# img = blackAndWhite(img)
+# words = seperateWords(img)
+# nword = 28
+# nword = 4
+# # showImageZoomed(words[nword])
+# parts = seperateToParts(words[nword])
+
+
+# npart = 1
+# npart = 0
+# # showImageZoomed(parts[npart], waitkey = False, name='original')
+# # print(parts[npart].shape)
+# part = addPadding(parts[npart], 1, 1)
+# part[part <= 100] = 0
+# part[part > 0] = 1
+# thin = zhangSuen(part)
+
+# thin[thin != 0] = 255
+# showImageZoomed(thin, waitkey = False, name='thin')
+# closeAllWindows();
+# Lines = getLineSegments(thin)
+
+
 img = loadImage('test.png')
-img = fixSkew(img)
 img = invertImage(img)
+img = fixSkew(img, thrs=50)
 img = blackAndWhite(img)
-words = seperateWords(img)
-nword = 28
-nword = 4
-showImageZoomed(words[nword])
-parts = seperateToParts(words[nword])
+words, lines = seperateWords(img, getLines = True)
+line = lines[0]
+# showImage(line)
+words = words[0]
+line[line < 150] = 0
+line = addPadding(line, 1, 1)
+line = zhangSuen(line)
+# showImage(line, name='dvdf')
+
+# print(line.shape)
+
+# showImageZoomed(line, name='dvdf')
+
+bins = line.shape[0]
+Histogram = getHistogramH(line, bins=bins)
+Maxima = np.where(Histogram == max(Histogram))[0][0] - 1
+# showImageZoomed(line, points=[(Maxima + 1, X) for X in range(line.shape[1])])
+
+for word in words:
+    showImageZoomed(word, waitkey='word')
+    # print(word.shape)
+    parts = seperateToParts(word)
+    for part in parts:
+        if len(np.where(part == 255)[0]) / (part.shape[0] * part.shape[1]) <= 0.05: continue
+        part = addPadding(part, 1, 1)
+        thin = zhangSuen(part)
+        showImageZoomed(thin, points=[(Maxima + 1, X) for X in range(thin.shape[1])], waitkey=False, name='part')
+
+        seperateLetters(thin, baseline=Maxima + 1)
+
+# nword = 28
+# nword = 4
+# # showImageZoomed(words[nword])
+# parts = seperateToParts(words[nword])
 
 
-npart = 1
-npart = 0
-showImageZoomed(parts[npart], waitkey = False, name='original')
-print(parts[npart].shape)
-part = addPadding(parts[npart], 1, 1)
-part[part <= 100] = 0
-part[part > 0] = 1
-thin = zhangSuen(part)
+# npart = 1
+# npart = 0
+# # showImageZoomed(parts[npart], waitkey = False, name='original')
+# # showImageZoomed(parts[npart], points=[(Maxima, X) for X in range(parts[npart].shape[1])])
+# part = addPadding(parts[npart], 1, 1)
+# thin = zhangSuen(part)
+# showImageZoomed(thin, points=[(Maxima + 1, X) for X in range(thin.shape[1])])
 
-thin[thin != 0] = 255
-showImageZoomed(thin, waitkey = False, name='thin')
-seperateLetters(thin)
-closeAllWindows();
+# seperateLetters(thin, baseline=Maxima + 1)

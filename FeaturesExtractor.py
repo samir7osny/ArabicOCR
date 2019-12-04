@@ -57,14 +57,12 @@ def getHistogramH(img, bins = 8):
     
     (h, w) = img.shape
 
-    img = blackAndWhite(img)
-
     SlotWidth = ceil(h / bins)
     # showImage(Img, '5')
     for _bin in range(bins):
         Slice = img[_bin * SlotWidth: (_bin + 1) * SlotWidth, :]
         Histogram[_bin] += len(np.where(Slice == 255)[0])
-
+    # print(Histogram)
     return Histogram
 
 # from Utilities import *

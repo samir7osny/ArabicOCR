@@ -28,7 +28,10 @@ def showImageZoomed(img, ratio = 15, name = "image", points=None, waitkey = True
             img[point[0], point[1], 1] = img[point[0], point[1], 1] - 150
         zoomed = np.zeros((size[0], size[1], 3), np.uint8)
     else:
-        zoomed = np.zeros(size)
+        if len(img.shape) == 3:
+            zoomed = np.zeros((size[0], size[1], 3), np.uint8)
+        else:
+            zoomed = np.zeros(size)
     for Y, Row in enumerate(img):
         for X, Pixel in enumerate(Row):
             zoomed[Y*ratio + Y: (Y + 1)*ratio + Y, X*ratio + X: (X + 1)*ratio + X] = Pixel
@@ -64,15 +67,22 @@ def seperateToParts_utility(img, point):
         img[point[0], point[1]] = 0
         return [point] + seperateToParts_utility(img, (point[0] - 1, point[1])) + seperateToParts_utility(img, (point[0] - 1, point[1] + 1)) + seperateToParts_utility(img, (point[0], point[1] + 1)) + seperateToParts_utility(img, (point[0] + 1, point[1] + 1)) + seperateToParts_utility(img, (point[0] + 1, point[1])) + seperateToParts_utility(img, (point[0] + 1, point[1] - 1)) + seperateToParts_utility(img, (point[0], point[1] - 1)) + seperateToParts_utility(img, (point[0] - 1, point[1] - 1))
 
-def removePadding(img):
-    WhitePixels = np.where(img > 200)
-    MinY = min(WhitePixels[0])
-    MaxY = max(WhitePixels[0])
-    MinX = min(WhitePixels[1])
-    MaxX = max(WhitePixels[1])
-    return img[MinY: MaxY + 1, MinX: MaxX + 1]
+def removePadding(img, padding = None, thrs = 200):
+    if padding is None:
+        WhitePixels = np.where(img > 200)
+        MinY = min(WhitePixels[0])
+        MaxY = max(WhitePixels[0])
+        MinX = min(WhitePixels[1])
+        MaxX = max(WhitePixels[1])
+        return img[MinY: MaxY + 1, MinX: MaxX + 1]
+    else:
+        h, w = img.shape
+        hpadding = padding[0]
+        wpadding = padding[1]
+        return img[hpadding: h - 2 * hpadding + 1, wpadding: w - 2 * wpadding + 1]
 
 def seperateToParts(img):
+    img = img.copy()
     Parts = []
     # showImage(img)
     WhitePixels = np.where(img == 255)
@@ -83,7 +93,7 @@ def seperateToParts(img):
         for index in range(len(Pixels)):
             Copy[Pixels[index][0], Pixels[index][1]] = 255
         # showImage(Copy)
-        Parts.append(removePadding(Copy))
+        Parts.append(Copy)
         # print(Pixels)
         WhitePixels = np.where(img == 255)  
     return Parts
@@ -118,6 +128,11 @@ def addPadding(img, hpadding, wpadding):
     img = cv2.copyMakeBorder(img, hpadding, hpadding, wpadding, wpadding, cv2.BORDER_CONSTANT, value = (0, 0, 0))
 
     return img
+
+def elementwiseAdding(a, b):
+    assert len(a) == len(b)
+    Result = (a[Index] + b[Index] for Index in range(len(a)))
+    return tuple(Result)
 
 # def zhangSuen(img):
 #     # P9  	  P2  	  P3  

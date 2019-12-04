@@ -77,8 +77,9 @@ def neighbours(x, y, image):
 def transitions(neighbours):
     n = neighbours + neighbours[0:1]    # P2, ... P9, P2
     return sum((n1, n2) == (0, 1) for n1, n2 in zip(n, n[1:]))
- 
+
 def zhangSuen(image):
+    image[image == 255] = 1
     changing1 = changing2 = [(-1, -1)]
     while changing1 or changing2:
         # Step 1
@@ -107,6 +108,7 @@ def zhangSuen(image):
         for x, y in changing2: image[y][x] = 0
         #print changing1
         #print changing2
+    image[image == 1] = 255
     return image
  
 # from Utilities import *
