@@ -5,11 +5,8 @@ import copy
 
 # Cigirates after sex
 
-def showImage(img, name = "image", waitkey = True):
-    cv2.imshow(name,img)
-    if waitkey:
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+def showImage(img, name = "image", waitkey = True, points = None):
+    showImageZoomed(img, ratio=1, name = name, points = points, waitkey = waitkey, seperate = 0)
 
 def closeAllWindows(waitkey = True):
     if waitkey:
@@ -18,8 +15,8 @@ def closeAllWindows(waitkey = True):
     else:
         cv2.destroyAllWindows()
 
-def showImageZoomed(img, ratio = 15, name = "image", points=None, waitkey = True):
-    size = ((img.shape[0] * (ratio + 1)), (img.shape[1] * (ratio + 1)))
+def showImageZoomed(img, ratio = 15, name = "image", points=None, waitkey = True, seperate = 1):
+    size = ((img.shape[0] * (ratio + seperate)), (img.shape[1] * (ratio + seperate)))
     if points != None:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         img[img > 0] = 255
@@ -34,7 +31,46 @@ def showImageZoomed(img, ratio = 15, name = "image", points=None, waitkey = True
             zoomed = np.zeros(size)
     for Y, Row in enumerate(img):
         for X, Pixel in enumerate(Row):
-            zoomed[Y*ratio + Y: (Y + 1)*ratio + Y, X*ratio + X: (X + 1)*ratio + X] = Pixel
+            zoomed[Y*ratio + seperate * Y: (Y + 1)*ratio + seperate * Y, X*ratio + seperate * X: (X + 1)*ratio + seperate * X] = Pixel
+
+    cv2.imshow(name,zoomed)
+    if waitkey:
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+def showMultipleImages(imgs, ratio = 15, name = "image", points=None, waitkey = True, seperate = 1):
+    size = imgs[0].shape
+    # [print(img.shape) for img in imgs]
+    assert all(img.shape[0] == size[0] and img.shape[1] == size[1] for img in imgs)
+    assert all(len(img.shape) != 3 for img in imgs)
+
+    # Values = [Chr for Chr in '0123456789ABCDEF']
+    Colors = []
+    while len(Colors) != len(imgs):
+        Color = (np.random.randint(0, 256), np.random.randint(0, 256), np.random.randint(0, 256))
+        if Color[0] + Color[1] + Color[2] > 255 * 2:
+            Colors.append(Color)
+    # print(Colors)
+
+    size = ((size[0] * (ratio + seperate)), (size[1] * (ratio + seperate)))
+    
+    zoomed = np.zeros((size[0], size[1], 3), np.uint8)
+
+    for idx, img in enumerate(imgs):
+        Color = Colors[idx]
+        for Y, Row in enumerate(img):
+            for X, Pixel in enumerate(Row):
+                if Pixel != 0:
+                    Pixel = Pixel / 255
+                    PixelValue = (int(Color[0] * Pixel), int(Color[1] * Pixel), int(Color[2] * Pixel))
+                    zoomed[Y*ratio + seperate * Y: (Y + 1)*ratio + seperate * Y, X*ratio + seperate * X: (X + 1)*ratio + seperate * X] = PixelValue
+
+    if points is not None:
+        for point in points:
+            Y = point[0]
+            X = point[1]
+            PixelValue = 150
+            zoomed[Y*ratio + seperate * Y: (Y + 1)*ratio + seperate * Y, X*ratio + seperate * X: (X + 1)*ratio + seperate * X, 0:2] = PixelValue
 
     cv2.imshow(name,zoomed)
     if waitkey:
@@ -51,22 +87,11 @@ def invertImage(img):
     return 255 - img[:, :]
 
 def blackAndWhite(img, thrs = 100):
+    img = img.copy()
     img[img > thrs] = 255
     img[img <= thrs] = 0
     return img
-
-def seperateToParts_utility(img, point):
-    if -1 < point[0] < img.shape[0] and -1 < point[1] < img.shape[1]:
-        pass
-    else:
-        return []
-
-    if img[point[0], point[1]] != 255:
-        return []
-    else:
-        img[point[0], point[1]] = 0
-        return [point] + seperateToParts_utility(img, (point[0] - 1, point[1])) + seperateToParts_utility(img, (point[0] - 1, point[1] + 1)) + seperateToParts_utility(img, (point[0], point[1] + 1)) + seperateToParts_utility(img, (point[0] + 1, point[1] + 1)) + seperateToParts_utility(img, (point[0] + 1, point[1])) + seperateToParts_utility(img, (point[0] + 1, point[1] - 1)) + seperateToParts_utility(img, (point[0], point[1] - 1)) + seperateToParts_utility(img, (point[0] - 1, point[1] - 1))
-
+    
 def removePadding(img, padding = None, thrs = 200):
     if padding is None:
         WhitePixels = np.where(img > 200)
@@ -80,23 +105,6 @@ def removePadding(img, padding = None, thrs = 200):
         hpadding = padding[0]
         wpadding = padding[1]
         return img[hpadding: h - 2 * hpadding + 1, wpadding: w - 2 * wpadding + 1]
-
-def seperateToParts(img):
-    img = img.copy()
-    Parts = []
-    # showImage(img)
-    WhitePixels = np.where(img == 255)
-    while len(WhitePixels[0]) != 0:
-        FirstWhitePixel = (WhitePixels[0][0] , WhitePixels[1][0])
-        Copy = np.zeros(img.shape, np.uint8)
-        Pixels = seperateToParts_utility(img, FirstWhitePixel)
-        for index in range(len(Pixels)):
-            Copy[Pixels[index][0], Pixels[index][1]] = 255
-        # showImage(Copy)
-        Parts.append(Copy)
-        # print(Pixels)
-        WhitePixels = np.where(img == 255)  
-    return Parts
         
 def getPixel(point, img):
     size = img.shape

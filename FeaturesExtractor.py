@@ -65,7 +65,21 @@ def getHistogramH(img, bins = 8):
     # print(Histogram)
     return Histogram
 
-# from Utilities import *
-# Img = loadImage('2.png')
-# H = getHistogram(Img)
-# print(H)
+def getHistogramV(img, bins = 8):
+    Histogram = np.zeros(bins)
+    
+    (h, w) = img.shape
+
+    SlotWidth = ceil(w / bins)
+    # showImage(Img, '5')
+    for _bin in range(bins):
+        Slice = img[:, _bin * SlotWidth: (_bin + 1) * SlotWidth]
+        Histogram[_bin] += len(np.where(Slice == 255)[0])
+    # print(Histogram)
+    return Histogram
+
+# Riad
+# def Algo1(img):
+#     for Y, Row in enumerate(img):
+#         for X, Pixel in enumerate(Row):
+            

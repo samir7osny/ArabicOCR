@@ -78,8 +78,10 @@ def transitions(neighbours):
     n = neighbours + neighbours[0:1]    # P2, ... P9, P2
     return sum((n1, n2) == (0, 1) for n1, n2 in zip(n, n[1:]))
 
+import numpy as np
 def zhangSuen(image):
     image[image == 255] = 1
+    # print(np.where((image != 1) & (image != 0)))
     changing1 = changing2 = [(-1, -1)]
     while changing1 or changing2:
         # Step 1

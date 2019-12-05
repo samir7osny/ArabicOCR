@@ -67,16 +67,29 @@ def getLinePixels(line):
 
 
 img = loadImage('test.png')
+# img = invertImage(img)
+# showImage(img)
+# img[:, :] = img[:, :] * 1.5
+# kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+# img = cv2.filter2D(img, -1, kernel)
+
+# cv2.imwrite('test2.png', img)
+# showImage(img)
+# exit()
 img = invertImage(img)
 img = fixSkew(img, thrs=50)
-img = blackAndWhite(img)
+img = blackAndWhite(img, thrs=90)
 words, lines = seperateWords(img, getLines = True)
-line = lines[0]
+LineIndex = 3
+line = lines[LineIndex]
+showImage(line)
 # showImage(line)
-words = words[0]
+words = words[LineIndex]
 line[line < 150] = 0
 line = addPadding(line, 1, 1)
+line = cv2.flip(line, 1)
 line = zhangSuen(line)
+line = cv2.flip(line, 1)
 # showImage(line, name='dvdf')
 
 # print(line.shape)
@@ -88,16 +101,20 @@ Histogram = getHistogramH(line, bins=bins)
 Maxima = np.where(Histogram == max(Histogram))[0][0] - 1
 # showImageZoomed(line, points=[(Maxima + 1, X) for X in range(line.shape[1])])
 
-for word in words:
-    showImageZoomed(word, waitkey='word')
+for word in (words):
+    showImageZoomed(word, name='word', waitkey=False)
     # print(word.shape)
     parts = seperateToParts(word)
     for part in parts:
         if len(np.where(part == 255)[0]) / (part.shape[0] * part.shape[1]) <= 0.05: continue
         part = addPadding(part, 1, 1)
+        
+        part = cv2.flip(part, 1)
         thin = zhangSuen(part)
+        thin = cv2.flip(thin, 1)
+        
         showImageZoomed(thin, points=[(Maxima + 1, X) for X in range(thin.shape[1])], waitkey=False, name='part')
-
+        closeAllWindows()
         seperateLetters(thin, baseline=Maxima + 1)
 
 # nword = 28
