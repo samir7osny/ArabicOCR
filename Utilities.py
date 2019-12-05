@@ -63,6 +63,8 @@ def showMultipleImages(imgs, ratio = 15, name = "image", points=None, waitkey = 
                 if Pixel != 0:
                     Pixel = Pixel / 255
                     PixelValue = (int(Color[0] * Pixel), int(Color[1] * Pixel), int(Color[2] * Pixel))
+                    if sum(zoomed[Y*ratio + seperate * Y, X*ratio + seperate * X]) != 0:
+                        PixelValue = (0, 0, 255)
                     zoomed[Y*ratio + seperate * Y: (Y + 1)*ratio + seperate * Y, X*ratio + seperate * X: (X + 1)*ratio + seperate * X] = PixelValue
 
     if points is not None:
@@ -102,9 +104,7 @@ def removePadding(img, padding = None, thrs = 200):
         return img[MinY: MaxY + 1, MinX: MaxX + 1]
     else:
         h, w = img.shape
-        hpadding = padding[0]
-        wpadding = padding[1]
-        return img[hpadding: h - 2 * hpadding + 1, wpadding: w - 2 * wpadding + 1]
+        return img[padding[0]: h - (padding[0] + padding[1]) + 1, padding[2]: w - (padding[2] + padding[3]) + 1]
         
 def getPixel(point, img):
     size = img.shape
@@ -131,9 +131,9 @@ def safetyPadding(img):
 
     return img, HPadding, WPadding
 
-def addPadding(img, hpadding, wpadding):
+def addPadding(img, padding):
     
-    img = cv2.copyMakeBorder(img, hpadding, hpadding, wpadding, wpadding, cv2.BORDER_CONSTANT, value = (0, 0, 0))
+    img = cv2.copyMakeBorder(img, padding[0], padding[1], padding[2], padding[3], cv2.BORDER_CONSTANT, value = (0, 0, 0))
 
     return img
 
@@ -141,84 +141,3 @@ def elementwiseAdding(a, b):
     assert len(a) == len(b)
     Result = (a[Index] + b[Index] for Index in range(len(a)))
     return tuple(Result)
-
-# def zhangSuen(img):
-#     # P9  	  P2  	  P3  
-#     # P8  	  P1  	  P4  
-#     # P7  	  P6  	  P5  
-
-#     img[img > 100] = 255
-#     img[img <= 100] = 0
-
-#     def getAdjs(img, point):
-#         Y, X = point
-#         EightAdjs = True
-#         P2, C = getPixel((Y - 1, X), img)
-#         EightAdjs = EightAdjs and C
-#         P3, C = getPixel((Y - 1, X + 1), img)
-#         EightAdjs = EightAdjs and C
-#         P4, C = getPixel((Y, X + 1), img)
-#         EightAdjs = EightAdjs and C
-#         P5, C = getPixel((Y + 1, X + 1), img)
-#         EightAdjs = EightAdjs and C
-#         P6, C = getPixel((Y + 1, X), img)
-#         EightAdjs = EightAdjs and C
-#         P7, C = getPixel((Y + 1, X - 1), img)
-#         EightAdjs = EightAdjs and C
-#         P8, C = getPixel((Y, X - 1), img)
-#         EightAdjs = EightAdjs and C
-#         P9, C = getPixel((Y - 1, X - 1), img)
-#         EightAdjs = EightAdjs and C
-#         return P2, P3, P4, P5, P6, P7, P8, P9, EightAdjs
-
-#     def getTransitions(img, point, adjs):
-#         Transitions = 0
-#         CurrentValue = Adjs[-1]
-#         for Index in range(len(adjs)):
-#             if adjs[Index] != CurrentValue and CurrentValue == 0:
-#                 Transitions += 1
-#             CurrentValue = adjs[Index]
-
-#         return Transitions
-
-#     def getWhites(img, point, adjs):
-#         return len(np.where(adjs == 255)[0])
-
-#     Done = False
-#     while not Done:
-#         Done = True
-#         ToErase = []
-#         for Y, Row in enumerate(img):
-#             for X, Pixel in enumerate(Row):
-#                 if Pixel != 255:
-#                     continue
-
-#                 P2, P3, P4, P5, P6, P7, P8, P9, EightAdjs = getAdjs(img, (Y, X))
-#                 Adjs = [P2, P3, P4, P5, P6, P7, P8, P9]
-#                 if EightAdjs and 2 <= getWhites(img, (Y, X), Adjs) <= 6 and getTransitions(img, (Y, X), Adjs) == 1 and (P2 == 0 or P4 == 0 or P6 == 0) and (P4 == 0 or P6 == 0 or P8 == 0):
-#                     ToErase.append((Y, X))
-#                     Done = False
-
-#         # for Y, X in ToErase:
-#         #     img[Y, X] = 0
-#         # ToErase = []
-#         for Y, Row in enumerate(img):
-#             for X, Pixel in enumerate(Row):
-#                 if Pixel != 255:
-#                     continue
-
-#                 P2, P3, P4, P5, P6, P7, P8, P9, EightAdjs = getAdjs(img, (Y, X))
-#                 Adjs = [P2, P3, P4, P5, P6, P7, P8, P9]
-#                 if EightAdjs and 2 <= getWhites(img, (Y, X), Adjs) <= 6 and getTransitions(img, (Y, X), Adjs) == 1 and (P2 == 0 or P4 == 0 or P8 == 0) and (P2 == 0 or P6 == 0 or P8 == 0):
-#                     ToErase.append((Y, X))
-#                     Done = False
-
-#         for Y, X in ToErase:
-#             img[Y, X] = 0
-
-#     return img
-
-
-# img = loadImage('1.png')
-# showImageZoomed(img, ratio= 10)
-# showImageZoomed(zhangSuen(img), ratio= 10)
