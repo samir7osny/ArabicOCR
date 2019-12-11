@@ -1,59 +1,177 @@
+
 import numpy as np
-from sklearn import linear_model
-from sklearn.datasets import make_classification
-from math import log, exp
-X = np.array([[-1, -1], [-2, -1], [1, 1], [2, 1], [-2, 1], [3, 1], [2, 3], [1, -1], [5, 1]])
-Y = np.array([1, 1, 2, 2, 1, 3, 4, 4, 5])
-# clf = linear_model.SGDClassifier(max_iter=1000, tol=1e-3)
-# clf.fit(X, Y)
+from sklearn.svm import SVC
+from ClassesMap import *
+from Utilities import *
+import os
+from HOGV3 import getHOG
+from math import sqrt
+from FeaturesExtractor import *
 
-X, Y = make_classification(n_samples=100, n_features=50, n_informative=5, n_classes=5, n_redundant=0, random_state=0, shuffle=True)
-# print(X[50])
-# exit()
+class DiffClassifier(object):
+    def __init__(self):
+        self.data = []
+        self.classes = []
+    
+    def fit(self, X, y):
+        assert len(X) == len(y)
+        self.data = X
+        self.classes = y
 
-Classifiers = []
-WClassifiers = []
+    def predict(self, img):
+        img = img[0]
+        img = img.astype(np.float64)
+        Diffs = []
 
-NClass = 106
-NClassifier = 10
+        for Idx, DImg in enumerate(self.data):
+            DImg = DImg.astype(np.float64)
+            Diffs.append((self.classes[Idx], sum(sum(abs(img - DImg)))))
+        # print(Diffs)
+        Diffs = sorted(Diffs, key=lambda x: x[1])
+        # if Diffs[0][0] == 51:
+        #     idx = self.classes.index(51)
+        #     idx2 = self.classes.index(53)
+        #     showImageZoomed(abs(self.data[idx] - img), name='diff1')
+        #     showImageZoomed(abs(self.data[idx2] - img), name='diff2')
+            # showImageZoomed(img, name='or', waitkey=False)
+            # showMultipleImages([img, self.data[idx2]], waitkey=False)
+            # showImageZoomed(self.data[idx], name='c1')
+            # showMultipleImages([img, self.data[idx]], waitkey=True, name='c1')
+            # showImageZoomed(self.data[idx2], name='c2')
+        print(Diffs)
+        print()
+        return [Diffs[0][0]]
 
-W = np.zeros(len(X))
-W[:] = 1 / len(W)
+class DistanceClassifier(object):
+    def __init__(self):
+        self.data = []
+        self.classes = []
 
-def pi(ym, xm, classifier):
-    return (0 if ym == classifier.predict([xm])[0] else 1)
+    def distance(self, point1, point2):
+        return sqrt((point1[0] - point1[1]) ** 2 + (point2[0] - point2[1]) ** 2)
+    
+    def fit(self, X, y):
+        assert len(X) == len(y)
+        WhitePixels = [np.where(img == 255) for img in X]
+        self.data = WhitePixels
+        self.classes = y
 
-def computeError(w, x, y, classifier):
-    wsum = sum(w)
-    return sum([(w[Index] * pi(y[Index], x[Index], classifier)) / wsum for Index in range(len(w))])
+    def predict(self, img):
+        img = img[0]
+        PWhitePixels = np.where(img == 255)
+        Diffs = []
 
-def predict(wclassifiers, classifiers, x):
-    Result = np.zeros(5)
-    for c in range(NClassifier):
-        for cl in range(5):
-            Result[cl] += wclassifiers[c] * (1 - pi(cl, x, classifiers[c]))
+        for Idx in range(len(self.data)):
+            Diff = 0
+            for PPIdx in range(len(PWhitePixels[0])):
+                for DPIdx in range(len(self.data[Idx][0])):
+                    Diff += self.distance((PWhitePixels[0][PPIdx], PWhitePixels[1][PPIdx]), (self.data[Idx][0][DPIdx], self.data[Idx][1][DPIdx]))
+            Diffs.append((self.classes[Idx], Diff))
+        # print(Diffs)
+        Diffs = sorted(Diffs, key=lambda x: x[1])
+        # if Diffs[0][0] == 51:
+        #     idx = self.classes.index(51)
+        #     idx2 = self.classes.index(53)
+        #     showImageZoomed(abs(self.data[idx] - img), name='diff1')
+        #     showImageZoomed(abs(self.data[idx2] - img), name='diff2')
+            # showImageZoomed(img, name='or', waitkey=False)
+            # showMultipleImages([img, self.data[idx2]], waitkey=False)
+            # showImageZoomed(self.data[idx], name='c1')
+            # showMultipleImages([img, self.data[idx]], waitkey=True, name='c1')
+            # showImageZoomed(self.data[idx2], name='c2')
+        print(Diffs)
+        print()
+        return [Diffs[0][0]]
+        
+class HistogramClassifier(object):
+    def __init__(self):
+        self.cls = SVC(gamma='auto')
+    
+    def fit(self, X, y):
+        assert len(X) == len(y)
+        self.histograms = []
+        for img in X:
+            VHistogram = getHistogramV(img, bins=img.shape[1])
+            HHistogram = getHistogramH(img, bins=img.shape[0])
+            H = np.concatenate((VHistogram, HHistogram))
+            self.histograms.append( H )
+        self.classes = y
+        self.cls.fit(self.histograms, y)
 
-    return Result
+    def predict(self, imgs):
+        PredictedClasses = []
+        for img in imgs:
+            VHistogram = getHistogramV(img, bins=img.shape[1])
+            HHistogram = getHistogramH(img, bins=img.shape[0])
+            H = np.concatenate((VHistogram, HHistogram))
+            Diffs = []
+            for Idx, Histogram in enumerate(self.histograms):
+                Diffs.append((self.classes[Idx], sum(abs(H - Histogram))))
+            Diffs = sorted(Diffs, key=lambda x: x[1])
+            PredictedClasses.append(Diffs[0][0])
+        return PredictedClasses
 
-for t in range(NClassifier):
-    Classifier = linear_model.SGDClassifier(max_iter=1000, tol=1e-3)
-    Classifier.fit(X, Y)
+class Classifier(object):
+    
+    def __init__(self):
+        self.initClassifiers()
 
-    Classifiers.append(Classifier)
+    def initClassifiers(self):
+        X = { 'isolated': [], 'ending': [], 'middle': [], 'beginning': []}
+        y = { 'isolated': [], 'ending': [], 'middle': [], 'beginning': []}
 
-    Error = computeError(W, X, Y, Classifier)
-    WClassifier = log((1 - Error) / Error) if Error != 0 else 999
-    WClassifiers.append(WClassifier)
+        path = 'L/'
+        files = []
+        for r, d, f in os.walk(path):
+            files.extend(f)
+            break
 
-    W = [W[Index] * exp(WClassifier * pi(Y[Index], X[Index], Classifier)) for Index in range(len(W))]
+        images = []
+        for file in files:
+            img = loadImage(path + file)
+            img = resizeByPadding(img, (50, 50))
+            img = cv2.blur(img, ksize=(3, 3))
+            # img = cv2.resize(img, (100, 100))
+            # img = blackAndWhite(img, thrs=0)
+            ClassTuple = eval(file[:file.find('_')])
+            ClassIndex = ClassTuple[0] * 25 + ClassTuple[1]
+            # _, _, HOGVector = getHOG(img)
+            position = 'isolated'
+            if ClassTuple[0] == 1: position = 'ending'
+            if ClassTuple[0] == 2: position = 'middle'
+            if ClassTuple[0] == 3: position = 'beginning'
 
-    WSum = sum(W)
-    W = [W[Index] / WSum for Index in range(len(W))]
+            X[position].append(img)
+            y[position].append(ClassIndex)
 
-# print(WClassifiers)
-RandomIndex = np.random.choice(range(100))
-print(RandomIndex)
-print(predict(WClassifiers, Classifiers, X[RandomIndex]))
-print(Y[RandomIndex])
+        # self.clfs = { 'isolated': SVC(gamma='auto'), 'ending': SVC(gamma='auto'), 'middle': SVC(gamma='auto'), 'beginning': SVC(gamma='auto')}
+        self.clfs = { 'isolated': DiffClassifier(), 'ending': DiffClassifier(), 'middle': DiffClassifier(), 'beginning': DiffClassifier()}
+        self.clfs2 = { 'isolated': DistanceClassifier(), 'ending': DistanceClassifier(), 'middle': DistanceClassifier(), 'beginning': DistanceClassifier()}
+        self.clfs3 = { 'isolated': HistogramClassifier(), 'ending': HistogramClassifier(), 'middle': HistogramClassifier(), 'beginning': HistogramClassifier()}
+        for position in self.clfs:
+            self.clfs[position].fit(X[position], y[position])
+            self.clfs2[position].fit(X[position], y[position])
+            self.clfs3[position].fit(X[position], y[position])
 
-# [ 2.0544041, -0.70742659, -1.07605657, -0.86864918, -0.87916349, -0.11496177,  0.49585067, -1.32052535,  0.49908428,  0.3062034, 0.36369789, 0.31263396, -0.19346388, 1.24129922, -0.15589799, -0.7391692, -0.05872619, -0.95051795, -0.46399642, -0.17724662, -0.37955412,  0.19939707, 1.94576139, 0.57094984, 1.07230065, -0.50370944, -0.58701629, -0.37817805,  0.8528891, -2.14811848, -1.03316478, 0.10233585, -0.22409237, 1.96772968, 0.44768322, -0.66219144, -1.57760707, -0.34056003, -1.30322008, 0.46675065, 0.16110632, 0.32003193, 2.07917666, -0.90746598, -0.19240421, -1.21251574, -0.08059852, 1.59327362, 0.5687224, -0.11448705]
+    def predict(self, img, position):
+        # Gradient, GradientOrientation, HOGVector = getHOG(img)
+        img = resizeByPadding(img, (50, 50))
+        # img = cv2.resize(img, (100, 100))
+        img = cv2.blur(img, ksize=(3, 3))
+        # img = blackAndWhite(img, thrs=0)
+        PredictedClassIndex = self.clfs[position].predict([img])[0]
+        PredictedClassTuple = (PredictedClassIndex // 25, PredictedClassIndex % 25)
+        Char = 'S'
+        if PredictedClassTuple[0] == 1: Char = 'E'
+        if PredictedClassTuple[0] == 2: Char = 'M'
+        if PredictedClassTuple[0] == 3: Char = 'B'
+        print(Char + str(PredictedClassTuple[1] + 1))
+        
+        # PredictedClassIndex = self.clfs3[position].predict([img])[0]
+        # PredictedClassTuple = (PredictedClassIndex // 25, PredictedClassIndex % 25)
+        # Char = 'S'
+        # if PredictedClassTuple[0] == 1: Char = 'E'
+        # if PredictedClassTuple[0] == 2: Char = 'M'
+        # if PredictedClassTuple[0] == 3: Char = 'B'
+        # print(Char + str(PredictedClassTuple[1] + 1))
+        return PredictedClassTuple

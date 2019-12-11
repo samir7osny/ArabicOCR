@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from FeaturesExtractor import *
 from Thining import *
+from os import path
+from math import ceil, floor
 
 def fixSkew(img, thrs = 100):
     coords = np.column_stack(np.where(img > thrs))
@@ -19,7 +21,7 @@ def fixSkew(img, thrs = 100):
     return img
 
 def fixSkewAngle(img):
-    coords = np.column_stack(np.where(img == 255))
+    coords = np.column_stack(np.where(img != 0))
     angle = cv2.minAreaRect(coords)[-1]
     if angle < -45:
         angle = -(90 + angle)
@@ -33,6 +35,22 @@ def rotateImage(img, angle):
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
     img = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     return img
+
+def fixSkewAngleV2(img, dangle = 2.0):
+    Max = (0, 0)
+    Step = dangle
+    for _ in range(3):
+        BAngle = Max[1] - Step
+        EAngle = Max[1] + Step
+        Step = (0.1 / (10 ** (_ + 1)))
+        for angle in np.arange(BAngle, EAngle, Step):
+            TempImg = rotateImage(img, angle)
+            histogram = getHistogramH(TempImg, bins=TempImg.shape[0])
+            score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
+            Max = Max if Max[0] > score else (score, angle)
+                
+    # print(Max)
+    return Max[1]
 
 def seperateLines(img):
     Histogram = getHistogramH(img, bins=img.shape[0])
@@ -83,43 +101,35 @@ def seperateLines(img):
 def getBaseLine(line):
     Histogram = getHistogramH(line, bins=line.shape[0])
     Max = np.where(Histogram == max(Histogram))[0]
-
     Max = Max[0]
     return Max
 
-# good result at thrs 50 then rotate then thrs 100
-img = loadImage('test.png')
-img = invertImage(img)
-binaryImg = blackAndWhite(img, thrs = 50)
-angle = fixSkewAngle(binaryImg)
-# showImage(binaryImg)
-# exit()
-img = rotateImage(img, angle=angle)
-img = blackAndWhite(img, thrs = 100)
-# showImage(img)
-Lines = seperateLines(img)
-# for Line in Lines:
-#     Baseline = getBaseLine(Line)
-#     Points = [(Baseline, X) for X in range(Line.shape[1])]
-#     showImageZoomed(Line, ratio=2, points=Points)
+def seperateParts(img, point=None):
 
-def seperateParts(img):
+    if point != None:
+        Copy = np.zeros(img.shape, np.uint8)
+        Pixels = getPartPixels(point)
+        for index in range(len(Pixels)):
+            Copy[Pixels[index][0], Pixels[index][1]] = 255
+        # showImage(Copy)
+        return Copy
+
     img = img.copy()
 
-    def getPartPixels(point):
+    def getPartPixels(ppoint):
         Directions = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
-        if -1 < point[0] < img.shape[0] and -1 < point[1] < img.shape[1]:
+        if -1 < ppoint[0] < img.shape[0] and -1 < ppoint[1] < img.shape[1]:
             pass
         else:
             return []
 
-        if img[point[0], point[1]] != 255:
+        if img[ppoint[0], ppoint[1]] != 255:
             return []
         else:
-            img[point[0], point[1]] = 0
-            Pixels = [point]
+            img[ppoint[0], ppoint[1]] = 0
+            Pixels = [ppoint]
             for Dir in Directions:
-                Pixels = Pixels + getPartPixels(elementwiseAdding(point, Dir))
+                Pixels = Pixels + getPartPixels(elementwiseAdding(ppoint, Dir))
             return Pixels
 
     Parts = []
@@ -137,13 +147,14 @@ def seperateParts(img):
         WhitePixels = np.where(img == 255)  
     return Parts
 
-def seperateWordsV2(line):
+def seperateWords(line):
     line = removePadding(line)
-    Baseline = getBaseLine(line)
+    ThiningLine = zhangSuen(line)
+    Baseline = getBaseLine(ThiningLine)
     
     VHistogram = getHistogramV(line, bins=line.shape[1])
     VHistogramZeros = list(np.where(VHistogram == 0)[0])
-    VHistogramZeros.append(img.shape[1] + 50) # dump value to add last interval
+    VHistogramZeros.append(line.shape[1] + 50) # dump value to add last interval
     StartInterval = -1
     EndInterval = -1
     ZerosIntervals = []
@@ -189,14 +200,62 @@ def getLettersSeperators(img, baseline):
             if RightSupport: return True
         return False
 
-    SeperationPointsX = [X for X in range(img.shape[1]) if isValidSeperator(X)]
-    SeperationPointsX = SeperationPointsX + [thin.shape[1] + 50] # dump value to add last interval
     Seperators = []
+    SeperationPointsX = [X for X in range(img.shape[1]) if isValidSeperator(X)]
+
+    # fix المقبل
+    baseline -= 1
+    SeperationPointsX2 = [X for X in range(img.shape[1]) if isValidSeperator(X)]
+    SeperationPointsX2 = SeperationPointsX2 + [thin.shape[1] + 50] # dump value to add last interval
+    Start = SeperationPointsX2[0]
+    End = SeperationPointsX2[0]
+    for X in SeperationPointsX2[1:]:
+        if X - End > 1:
+            # not the first pixel in the baseline (OR) first pixel in the baseline but not the first in the part
+            if Start != 0 and sum(thin[baseline, 0: Start]) != 0 \
+                or Start >= 3 and sum(thin[baseline, 0: Start]) == 0 and sum(sum(thin[:, 0: Start])) != 0 and End - Start > 1 \
+                and (
+                End != thin.shape[1] - 1 and sum(thin[baseline, End:]) != 0 \
+                or End <= thin.shape[1] - 1 - 3 and sum(thin[baseline, End:]) == 0 and sum(sum(thin[:, End:])) != 0 and End - Start > 1):
+                if Start not in SeperationPointsX and End not in SeperationPointsX and (Start - 1) not in SeperationPointsX and (End + 1) not in SeperationPointsX and End - Start > 1:
+                    for It in range(Start, End + 1): # (DONT) remove one to decrease the probability
+                        SeperationPointsX.append(It)
+            Start = X
+        End = X
+    baseline += 1
+    baseline += 1
+    SeperationPointsX2 = [X for X in range(img.shape[1]) if isValidSeperator(X)]
+    SeperationPointsX2 = SeperationPointsX2 + [thin.shape[1] + 50] # dump value to add last interval
+    Start = SeperationPointsX2[0]
+    End = SeperationPointsX2[0]
+    for X in SeperationPointsX2[1:]:
+        if X - End > 1:
+            # not the first pixel in the baseline (OR) first pixel in the baseline but not the first in the part
+            if Start != 0 and sum(thin[baseline, 0: Start]) != 0 \
+                or Start >= 3 and sum(thin[baseline, 0: Start]) == 0 and sum(sum(thin[:, 0: Start])) != 0 and End - Start > 1 \
+                and (
+                End != thin.shape[1] - 1 and sum(thin[baseline, End:]) != 0 \
+                or End <= thin.shape[1] - 1 - 3 and sum(thin[baseline, End:]) == 0 and sum(sum(thin[:, End:])) != 0 and End - Start > 1):
+                if Start not in SeperationPointsX and End not in SeperationPointsX and (Start - 1) not in SeperationPointsX and (End + 1) not in SeperationPointsX and End - Start > 1:
+                    for It in range(Start, End + 1): # (DONT) remove one to decrease the probability
+                        SeperationPointsX.append(It)
+            Start = X
+        End = X
+    baseline -= 1
+
+    SeperationPointsX = sorted(SeperationPointsX)
+
+    SeperationPointsX = SeperationPointsX + [thin.shape[1] + 50] # dump value to add last interval
     Start = SeperationPointsX[0]
     End = SeperationPointsX[0]
     for X in SeperationPointsX[1:]:
         if X - End > 1:
-            if Start != 0 and sum(thin[baseline, 0: Start]) != 0: # not the first pixel in the baseline
+            # not the first pixel in the baseline (OR) first pixel in the baseline but not the first in the part
+            if Start != 0 and sum(thin[baseline, 0: Start]) != 0 \
+                or Start >= 3 and sum(thin[baseline, 0: Start]) == 0 and sum(sum(thin[:, 0: Start])) != 0 and End - Start > 1 \
+                and (
+                End != thin.shape[1] - 1 and sum(thin[baseline, End:]) != 0 \
+                or End <= thin.shape[1] - 1 - 3 and sum(thin[baseline, End:]) == 0 and sum(sum(thin[:, End:])) != 0 and End - Start > 1):
                 Seperators.append((Start, End))
             Start = X
         End = X
@@ -221,7 +280,7 @@ def lettersSeperatorsToParts(parts, seperators, baseline):
 
     NewParts = []
     Info = []       # {boundries(xFrom, xTo), boundries-noseperators(xFrom, xTo), position(isolated| begining| middle| ending), base(underbase, abovebase, onbase)}
-    for Idx, Part in enumerate(Parts):
+    for Idx, Part in enumerate(parts):
         Thin = zhangSuen(Part)
         if len(np.where(Thin == 255)[0]) != 0:
             Part = Thin
@@ -253,7 +312,7 @@ def lettersSeperatorsToParts(parts, seperators, baseline):
                 Info.append({
                     'boundries': (XFrom, XTo),
                     'boundries-noseperators': (End1, XTo),
-                    'position': 'begining',
+                    'position': 'beginning',
                     'base': 'onbase'
                 })
             else:                               # middle
@@ -299,28 +358,43 @@ def combineLettersWithDots(parts, info):
 
     return NewParts, Info
 
-Lines = [seperateWordsV2(Line) for Line in Lines]
-for Line, Baseline in Lines:
-    for Word in reversed(Line):
-        Parts = seperateParts(Word)
-        BaseLinePoints = [(Baseline, X) for X in range(Word.shape[1])]
-        showMultipleImages(Parts, waitkey=False, name='word', points=BaseLinePoints)
+def centeralizeTheLetter(letter, baseline):
+    WhitePixels = np.where(letter == 255)
+    MinX = min(WhitePixels[1])
+    MaxX = max(WhitePixels[1])
+    WhitePixels = [(WhitePixels[0][idx], WhitePixels[1][idx]) for idx in range(len(WhitePixels[0]))]
 
-        LettersSeperators = [getLettersSeperators(Part, Baseline) for Part in Parts]
-        # print(LettersSeperators)
-        # closeAllWindows()
+    WhitePixels = sorted(WhitePixels, key=lambda x:x[0])
+    # print(WhitePixels)
+    Min = WhitePixels[0][0] if WhitePixels[0][0] < baseline else baseline
+    Max = WhitePixels[-1][0] if WhitePixels[-1][0] > baseline else baseline
 
-        Parts, Info = lettersSeperatorsToParts(Parts, LettersSeperators, Baseline)
-        print(Info)
-        showMultipleImages(Parts, name='seperated', waitkey=False)
-        print()
-        Parts, Info = combineLettersWithDots(Parts, Info)
-        print(Info)
-        showMultipleImages(Parts, name='seperated combined', waitkey=False)
-        print('#' * 15)
-        closeAllWindows()
-        # thin = addPadding(Word, 1, 1)
-        # thin = zhangSuen(thin)
-        # thin = removePadding(thin, padding=(1, 1))
-        # showImageZoomed(thin, ratio=10, points=Points, waitkey=False, name='Thin')
-        # showImageZoomed(Word, ratio=10, points=Points, name='Original')
+    MaxDiff = max([baseline - Min, Max - baseline])
+    # print('M', MaxDiff)
+    letter = addPadding(letter, (MaxDiff, MaxDiff, 0, 0))
+    baseline += MaxDiff
+    return letter[baseline - MaxDiff: baseline + MaxDiff + 1, MinX: MaxX + 1]
+
+# img = loadImage('test.png')
+# img = invertImage(img)
+# binaryImg = blackAndWhite(img, thrs = 50)
+# angle = fixSkewAngle(binaryImg)
+# angle2 = fixSkewAngleV2(binaryImg)
+# print(angle)
+# print(angle2)
+# showImage(binaryImg)
+# # exit()
+# cimg = img.copy()
+# img = rotateImage(img, angle=angle)
+# img = blackAndWhite(img, thrs = 100)
+
+# First = min(np.where(img == 255)[0])
+# Points = [(First, X) for X in range(img.shape[1])]
+# showImage(img, points=Points, waitkey=False, name='angle1')
+
+# cimg = rotateImage(cimg, angle=angle2)
+# cimg = blackAndWhite(cimg, thrs = 100)
+
+# First = min(np.where(cimg == 255)[0])
+# Points = [(First, X) for X in range(cimg.shape[1])]
+# showImage(cimg, points=Points)

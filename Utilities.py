@@ -15,7 +15,7 @@ def closeAllWindows(waitkey = True):
     else:
         cv2.destroyAllWindows()
 
-def showImageZoomed(img, ratio = 15, name = "image", points=None, waitkey = True, seperate = 1):
+def showImageZoomed(img, ratio = 5, name = "image", points=None, waitkey = True, seperate = 1):
     size = ((img.shape[0] * (ratio + seperate)), (img.shape[1] * (ratio + seperate)))
     if points != None:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
@@ -37,8 +37,10 @@ def showImageZoomed(img, ratio = 15, name = "image", points=None, waitkey = True
     if waitkey:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+    else:
+        cv2.waitKey(1)
 
-def showMultipleImages(imgs, ratio = 15, name = "image", points=None, waitkey = True, seperate = 1):
+def showMultipleImages(imgs, ratio = 5, name = "image", points=None, waitkey = True, seperate = 1):
     size = imgs[0].shape
     # [print(img.shape) for img in imgs]
     assert all(img.shape[0] == size[0] and img.shape[1] == size[1] for img in imgs)
@@ -78,6 +80,8 @@ def showMultipleImages(imgs, ratio = 15, name = "image", points=None, waitkey = 
     if waitkey:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+    else:
+        cv2.waitKey(1)
 
 def loadImage(img_path, grayscale = True):
     if grayscale:
@@ -141,3 +145,13 @@ def elementwiseAdding(a, b):
     assert len(a) == len(b)
     Result = (a[Index] + b[Index] for Index in range(len(a)))
     return tuple(Result)
+
+def resizeByPadding(img, size):
+    assert img.shape[0] <= size[0] and img.shape[1] <= size[1]
+
+    dTop = floor((size[0] -img.shape[0]) / 2)
+    dBottom = ceil((size[0] -img.shape[0]) / 2)
+    dLeft = floor((size[1] -img.shape[1]) / 2)
+    dRight = ceil((size[1] -img.shape[1]) / 2)
+
+    return addPadding(img, (dTop, dBottom, dLeft, dRight))
