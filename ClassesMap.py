@@ -132,7 +132,25 @@ B25 = (3, 24)
 
 Letters = {
     'ا': {
-        'decoration': [HAMZAABOVE, HAMZABELOW],
+        'decoration': [],
+        'seqs': {
+            ISOLATED:   [[S1]],
+            END:        [[E1]],
+            MIDDLE:     [],
+            BEGINNING:  []
+        }
+    },
+    'أ': {
+        'decoration': [HAMZAABOVE],
+        'seqs': {
+            ISOLATED:   [[S1]],
+            END:        [[E1]],
+            MIDDLE:     [],
+            BEGINNING:  []
+        }
+    },
+    'إ': {
+        'decoration': [HAMZABELOW],
         'seqs': {
             ISOLATED:   [[S1]],
             END:        [[E1]],
@@ -392,7 +410,7 @@ Letters = {
             BEGINNING:  []
         }
     },
-    'ه': {
+    'ة': {
         'decoration': [TWODOTSABOVE],
         'seqs': {
             ISOLATED:   [[S21]],

@@ -39,14 +39,15 @@ def rotateImage(img, angle):
 def fixSkewAngleV2(img, dangle = 2.0):
     Max = (0, 0)
     Step = dangle
-    for _ in range(3):
+    for _ in range(5):
         BAngle = Max[1] - Step
         EAngle = Max[1] + Step
         Step = (0.1 / (10 ** (_ + 1)))
         for angle in np.arange(BAngle, EAngle, Step):
             TempImg = rotateImage(img, angle)
             histogram = getHistogramH(TempImg, bins=TempImg.shape[0])
-            score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
+            # score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
+            score = len(np.where(histogram == 0)[0])
             Max = Max if Max[0] > score else (score, angle)
                 
     # print(Max)
